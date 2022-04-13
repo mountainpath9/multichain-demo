@@ -1,0 +1,9 @@
+node_modules
+.env
+.env-dev
+**/*.tsbuildinfo
+*.env
+typechain
+artifacts
+cache
+.vscode/settings.json
