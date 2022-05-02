@@ -9,7 +9,7 @@ yarn
 
 ## Generate typechain bindings
 ```
-yarn hardhat typechain
+rm -r typechain; yarn hardhat typechain
 ```
 
 ## Run tests
