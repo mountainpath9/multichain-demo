@@ -4,6 +4,7 @@ import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "hardhat/console.sol";
 
 /**
   Demo contract that stores tokens on behalf of a user,
@@ -19,16 +20,14 @@ contract TokenStore is Ownable {
 
     mapping(address => Deposit[]) depositsByOwner;
 
-    function withdrawApprove(address erc20Token, uint256 amount) public {
-        IERC20 token = IERC20(erc20Token);
-        token.approve(msg.sender, amount);  
-    }
-
     function deposit(address erc20Token, uint256 amount) public {
+        console.log("Attempting deposit from %s of %d of ", msg.sender, amount, erc20Token);
         uint balanceIdx = getBalanceIdx(msg.sender, erc20Token);
         depositsByOwner[msg.sender][balanceIdx].balance += amount;
 
         IERC20 token = IERC20(erc20Token);
+        uint256 currentAllowance = token.allowance(msg.sender, address(this));
+        console.log("Current allowance for owner %s spender %s is %d", msg.sender, address(this), currentAllowance);
         token.transferFrom(msg.sender, address(this), amount);  
     }
 

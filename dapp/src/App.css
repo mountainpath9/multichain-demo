@@ -1,0 +1,29 @@
+.App {
+  margin: 20px;
+}
+
+.App-BalanceTable {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  text-align: left;
+  border-spacing: 10px;
+}
+
+.Buttons > button {
+  margin-right: 5px;
+}
+
+.Form {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.Field {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+}
+
+.Field-Error {
+  color: red;
+}

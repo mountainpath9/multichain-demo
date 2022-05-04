@@ -1,36 +1,34 @@
 import '@nomiclabs/hardhat-ethers';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ethers } from 'hardhat';
-import { DemoToken__factory } from '../../typechain';
-import { DeployedContracts } from './contract-addresses';
-
-import { toAtto } from '../../shared/utils';
-
-const EPOCH_SIZE_SECONDS = 60; // Every minute for local testing
-const EPOCH_REWARD = toAtto(6849315 / 24);   // Daily rewards per hour 
+import { deploy, contractAddresses } from "./deployment";
+import { toAtto } from "../../shared/utils";
 
 async function main() {
-  const [owner, account1, account2] = await ethers.getSigners();
+  const [owner, user] = await ethers.getSigners();
 
-  const token = await new DemoToken__factory(owner).deploy();
-  
-  // Print config
-  const deployedContracts: DeployedContracts = {
-    DEMO_TOKEN:  token.address,
-    OWNER: '0x8626f6940e2eb28930efb4cef49b2d1f2c9c1199', // Account #19
-  };
+  const contracts = await deploy(owner);
 
-  const contractAddressAsMapping = deployedContracts as unknown as {[key: string]: string}
+  console.log("Contract addresses", JSON.stringify(contractAddresses(contracts), null, 2) );
   
-  console.log();
-  console.log('=========================================');
-  for (const envvar in contractAddressAsMapping) {
-    console.log(`${envvar}=${contractAddressAsMapping[envvar]}`);
-  }
-  console.log('=========================================');
+  // Mint some tokens for testing
+  await contracts.token1.mint(user.address, toAtto(1000));
+  await contracts.token2.mint(user.address, toAtto(2000));
+  console.log("Token balances for", user.address);
+  console.log("   ", await contracts.token1.symbol(), await contracts.token1.balanceOf(user.address));
+  console.log("   ", await contracts.token2.symbol(), await contracts.token2.balanceOf(user.address));
+
+  // Write local config for the dapp
+  const localConfigPath = path.join(__dirname, '../../dapp/src/configs/local.ts');
+  const deployTs = `
+export const CONFIG = {
+  tokenStoreAddress: "${contracts.tokenStore.address}",
+}
+`
+  await fs.promises.writeFile(localConfigPath, deployTs);
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
 main()
   .then(() => process.exit(0))
   .catch((error) => {

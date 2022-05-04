@@ -22,8 +22,8 @@ describe("Demo Token", async () => {
 
   before(async () => {
     [owner, user1, user2] = await ethers.getSigners();
-    token1 = await new DemoToken__factory(owner).deploy();
-    token2 = await new DemoToken__factory(owner).deploy();
+    token1 = await new DemoToken__factory(owner).deploy("Demo Token 1", "DTK1");
+    token2 = await new DemoToken__factory(owner).deploy("Demo Token 2", "DTK2");
     store = await new TokenStore__factory(owner).deploy();
 
     const user1Addr = await user1.getAddress();
