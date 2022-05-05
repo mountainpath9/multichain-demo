@@ -2,25 +2,18 @@ import { useState, useEffect } from 'react'
 import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils';
 
-import {TokenStore} from "types/typechain/TokenStore";
-import {TokenStore__factory} from "types/typechain/factories/TokenStore__factory";
-
-import './App.css'
 import { useTypedFieldState, TypedFieldState } from './util/fields/hooks';
 import { ETH_ADDRESS_FIELD, tokenAmountField } from './util/fields/ethers';
-import { TokenMetadata, getTokenMetadata, connectToken } from './util/tokens';
 import { CONFIG } from "./configs/local";
+import { Api, TokenMetadata, createApi } from "./api";
 
-interface Context {
-  provider: ethers.providers.Provider,
-  signer: ethers.Signer,
-  network: ethers.providers.Network,
-  tokenStore: TokenStore,
-};
+import './App.css'
+import { monitorEventLoopDelay } from 'perf_hooks';
+
 
 function App() {
 
-  const [context, setContext] = useState<Context| null>(null);
+  const [api, setApi] = useState<Api| null>(null);
 
   async function metamaskConnect() {
     if (typeof window !== undefined) {
@@ -28,14 +21,8 @@ function App() {
       const provider = new ethers.providers.Web3Provider(ethereum)
       const signer = provider.getSigner();
       await provider.send("eth_requestAccounts", []);
-      const network = await provider.getNetwork();
-      const tokenStore = TokenStore__factory.connect(CONFIG.tokenStoreAddress, signer);
-      setContext({
-        provider,
-        signer,
-        network,
-        tokenStore,
-      });
+      const api = createApi(signer, CONFIG.tokenStoreAddress);
+      setApi(api)
     }
   }
 
@@ -50,7 +37,7 @@ function App() {
   return (
     <div className="App">
       <h1>TokenStore</h1>
-      {context == null ? renderConnect() : <AppUi ctx={context}/>}
+      {api == null ? renderConnect() : <AppUi api={api}/>}
     </div>
   )
 }
@@ -77,21 +64,13 @@ interface ModalWithdrawal {
   balance: BigNumber,
 }
 
-function AppUi(props: {ctx: Context}) {
+function AppUi(props: {api: Api}) {
 
   const [storeBalances, setStoreBalances] = useState<StoreTokenBalance[]| null>(null);
   const [modal, setModal] = useState<ModalState| null>(null);
 
   async function loadBalances() {
-    const balances: StoreTokenBalance[] = [];
-    for(let b of await props.ctx.tokenStore.getBalances()) {
-      const token = await getTokenMetadata(b.erc20Token, props.ctx.signer);
-
-      balances.push({
-        token,
-        balance: b.balance,
-      });
-    }
+    const balances = await props.api.getStoreBalances();
     setStoreBalances(balances);
   };
 
@@ -136,20 +115,21 @@ function AppUi(props: {ctx: Context}) {
       );   
     } else if (modal.kind == "deposit-new") {
       return <DepositNewModal
-        ctx={props.ctx}
+        api={props.api}
         onContinue={showDeposit}
         onClose={closeModal}
       />;
     } else if (modal.kind == "deposit") {
       return <DepositModal 
-        ctx={props.ctx} 
+        api={props.api} 
         token={modal.token} 
         onClose={closeModal}
       />;
     } else {
       return <WithdrawalModal 
-        ctx={props.ctx}
-        ctx2={modal}
+        api={props.api}
+        token={modal.token}
+        balance={modal.balance}
         onClose={closeModal}
       />;
     }
@@ -202,7 +182,7 @@ function renderBalanceTable(
 }
 
 function DepositNewModal(props: {
-  ctx: Context,
+  api: Api,
   onContinue: (token: TokenMetadata) => void;
   onClose: () => void,
 }) {
@@ -214,7 +194,7 @@ function DepositNewModal(props: {
 
   async function go() {
     setInProgress(true);
-    const token = await getTokenMetadata(tokenField.value(), props.ctx.signer);
+    const token = await props.api.getTokenMetadata(tokenField.value());
     props.onContinue(token);
     setInProgress(false);
   }
@@ -234,7 +214,7 @@ function DepositNewModal(props: {
 }
 
 function DepositModal(props: {
-  ctx: Context,
+  api: Api,
   token: TokenMetadata,
   onClose: () => void,
 }) {
@@ -250,16 +230,10 @@ function DepositModal(props: {
     const amount = amountField.value();
 
     // add allowance
-    const signerAddr = await props.ctx.signer.getAddress();
-    console.log("Allowance", props.token.address,  amount, signerAddr);
-    const token = await connectToken(props.token.address, props.ctx.signer);
-    const tx1 = await token.approve(props.ctx.tokenStore.address, amount);
-    await tx1.wait();
+    await props.api.storeApprove(props.token, amount);
 
     // Deposit tokens to the store
-    console.log("Deposit", props.token.address, amount, signerAddr);
-    const tx2 = await props.ctx.tokenStore.connect(props.ctx.signer).deposit(props.token.address, amount);
-    await tx2.wait();
+    await props.api.storeDeposit(props.token, amount);
 
     setInProgress(false);
     props.onClose();
@@ -280,13 +254,14 @@ function DepositModal(props: {
 }
 
 function WithdrawalModal(props: {
-  ctx: Context,
-  ctx2: ModalWithdrawal,
+  api: Api,
+  token: TokenMetadata,
+  balance: BigNumber,
   onClose: () => void,
 }) {
 
 
-  const amountFieldType = tokenAmountField(props.ctx2.token.decimals);
+  const amountFieldType = tokenAmountField(props.token.decimals);
   const amountField = useTypedFieldState(amountFieldType);
   const [inProgress, setInProgress] = useState(false);
 
@@ -294,20 +269,15 @@ function WithdrawalModal(props: {
 
   async function go() {
     setInProgress(true);
-
     const amount = amountField.value();
-
-    // Withdraw tokens from the store
-    const tx1 = await props.ctx.tokenStore.connect(props.ctx.signer).withdraw(props.ctx2.token.address, amount);
-    await tx1.wait();
-
+    await props.api.storeWithdraw(props.token, amount);
     setInProgress(false);
     props.onClose();
   }
 
   return (
     <div>
-      {`Withdrawing ${props.ctx2.token.symbol} from store, available balance is ${amountFieldType.toText(props.ctx2.balance)}`}
+      {`Withdrawing ${props.token.symbol} from store, available balance is ${amountFieldType.toText(props.balance)}`}
       <div className="Form">
       {renderField("Amount", amountField, inProgress)}
       </div>
