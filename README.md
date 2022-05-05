@@ -42,6 +42,7 @@ This script:
 
 ```
 cd dapp
+yarn
 yarn dev
 ```
 
