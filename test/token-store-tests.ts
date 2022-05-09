@@ -10,7 +10,7 @@ import {
   TokenStore__factory 
 } from "../typechain";
 
-describe("Demo Token", async () => {
+describe("Token Store", async () => {
   let owner: Signer;
   let user1: Signer;
   let user2: Signer;

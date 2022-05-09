@@ -4,7 +4,6 @@ import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "hardhat/console.sol";
 
 /**
   Demo contract that stores tokens on behalf of a user,
@@ -12,51 +11,51 @@ import "hardhat/console.sol";
  */
 contract TokenStore is Ownable {
 
-    struct Deposit {
+    struct Balance {
         address erc20Token;
         uint256 balance;
     }
 
+    mapping(address => Balance[]) balancesByOwner;
 
-    mapping(address => Deposit[]) depositsByOwner;
+    event Deposit(address indexed _from, address indexed _token, uint256 amount);
+    event Withdraw(address indexed _from, address indexed _token, uint256 amount);
 
     function deposit(address erc20Token, uint256 amount) public {
-        console.log("Attempting deposit from %s of %d of ", msg.sender, amount, erc20Token);
         uint balanceIdx = getBalanceIdx(msg.sender, erc20Token);
-        depositsByOwner[msg.sender][balanceIdx].balance += amount;
-
+        balancesByOwner[msg.sender][balanceIdx].balance += amount;
         IERC20 token = IERC20(erc20Token);
-        uint256 currentAllowance = token.allowance(msg.sender, address(this));
-        console.log("Current allowance for owner %s spender %s is %d", msg.sender, address(this), currentAllowance);
-        token.transferFrom(msg.sender, address(this), amount);  
+        token.transferFrom(msg.sender, address(this), amount); 
+        emit Deposit(msg.sender, erc20Token, amount);
     }
 
     function withdraw(address erc20Token, uint256 amount) public {
-
         uint balanceIdx = getBalanceIdx(msg.sender, erc20Token);
-        uint256 existingBalance = depositsByOwner[msg.sender][balanceIdx].balance;
+        uint256 existingBalance = balancesByOwner[msg.sender][balanceIdx].balance;
         require(existingBalance >= amount, "Insufficient balance");
-        depositsByOwner[msg.sender][balanceIdx].balance -= amount;
+        balancesByOwner[msg.sender][balanceIdx].balance -= amount;
 
         IERC20 token = IERC20(erc20Token);
-        token.transfer(msg.sender, amount);        
+        token.transfer(msg.sender, amount);
+
+        emit Withdraw(msg.sender, erc20Token, amount);        
     }
 
-    function getBalances() public view returns (Deposit[] memory) {
-        return depositsByOwner[msg.sender];
+    function getBalances() public view returns (Balance[] memory) {
+        return balancesByOwner[msg.sender];
     }
 
     function getBalanceIdx(address owner, address erc20Token) private returns (uint) {
-        Deposit[] memory deposits = depositsByOwner[owner];
+        Balance[] memory deposits = balancesByOwner[owner];
         for(uint i = 0; i < deposits.length; i++ ) {
             if (deposits[i].erc20Token == erc20Token) {
                 return i;
             }
         }
-        Deposit memory newdeposit;
-        newdeposit.erc20Token = erc20Token;
-        newdeposit.balance = 0;
-        depositsByOwner[owner].push(newdeposit);
-        return depositsByOwner[owner].length - 1;
+        Balance memory newBalance;
+        newBalance.erc20Token = erc20Token;
+        newBalance.balance = 0;
+        balancesByOwner[owner].push(newBalance);
+        return balancesByOwner[owner].length - 1;
     }
 }
