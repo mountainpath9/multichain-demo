@@ -12,7 +12,7 @@ export interface Api {
   getTokenMetadata (address: string): Promise<TokenMetadata>;
 
   // Allow the token store to transfer amount of the specified token
-  storeApprove(token: TokenMetadata, amount: BigNumber): Promise<void>;
+  storeApprove(token: TokenMetadata, amount: BigNumber): Promise<TxResult<void>>;
 
   // Deposit the specified amount of the token into the store
   // (requires approval)
@@ -41,6 +41,11 @@ export interface StoreTokenBalance {
   balance: BigNumber,
 };
 
+export type TxResult<T> 
+  = { kind: 'success', result: T}
+  | { kind: 'tx-rejected' }
+  ;
+
 class ApiImpl implements Api {
 
   readonly tokenStore: TokenStore;
@@ -57,10 +62,12 @@ class ApiImpl implements Api {
       return {address, symbol, name, decimals};
   }
 
-  async storeApprove(tokenMetadata: TokenMetadata, amount: BigNumber): Promise<void> {
+  async storeApprove(tokenMetadata: TokenMetadata, amount: BigNumber): Promise<TxResult<void>> {
       const token = IERC20__factory.connect(tokenMetadata.address, this.signer);
-      const tx = await token.approve(this.tokenStore.address, amount);
-      await tx.wait();
+      return catchTxErrors(async () => {
+        const tx = await token.approve(this.tokenStore.address, amount);
+        await tx.wait();
+      });
   }
 
   async storeDeposit(tokenMetadata: TokenMetadata, amount: BigNumber): Promise<void> {
@@ -83,5 +90,17 @@ class ApiImpl implements Api {
       });
     }
     return result;
+  }
+}
+
+async  function catchTxErrors<T>(fn: () => Promise<T> ): Promise<TxResult<T>> {
+  try {
+    const result = await fn();
+    return {kind:'success', result};
+  } catch (e) {
+    if ((e as any).code === 4001) {
+      return {kind:'tx-rejected'};
+    }
+    throw e;
   }
 }

@@ -47,7 +47,7 @@ interface StoreTokenBalance {
   balance: BigNumber,
 };
 
-type ModalState = ModalDepositNew | ModalDeposit | ModalWithdrawal ;
+type ModalState = ModalDepositNew | ModalDeposit | ModalWithdrawal | ModalMessage;
 
 interface ModalDepositNew {
   kind: "deposit-new",
@@ -62,6 +62,11 @@ interface ModalWithdrawal {
   kind: "withdrawal",
   token: TokenMetadata,
   balance: BigNumber,
+}
+
+interface ModalMessage {
+  kind: "message",
+  message: string,
 }
 
 function AppUi(props: {api: Api}) {
@@ -90,9 +95,13 @@ function AppUi(props: {api: Api}) {
     setModal({kind:"withdrawal",...from});
   }
 
-  function closeModal() {
-    loadBalances();
-    setModal(null);
+  function closeModal(message?: string) {
+    if (message) {
+      setModal({kind:"message", message});
+    } else {
+      loadBalances();
+      setModal(null);
+    }
   }
 
   function renderContent() {
@@ -125,12 +134,17 @@ function AppUi(props: {api: Api}) {
         token={modal.token} 
         onClose={closeModal}
       />;
-    } else {
+    } else if (modal.kind == "withdrawal") {
       return <WithdrawalModal 
         api={props.api}
         token={modal.token}
         balance={modal.balance}
         onClose={closeModal}
+      />;
+    } else {
+      return <MessageModal 
+      message={modal.message}
+      onClose={closeModal}
       />;
     }
   }
@@ -216,7 +230,7 @@ function DepositNewModal(props: {
 function DepositModal(props: {
   api: Api,
   token: TokenMetadata,
-  onClose: () => void,
+  onClose: (message?: string) => void,
 }) {
 
   const amountField = useTypedFieldState(tokenAmountField(props.token.decimals));
@@ -230,7 +244,11 @@ function DepositModal(props: {
     const amount = amountField.value();
 
     // add allowance
-    await props.api.storeApprove(props.token, amount);
+    const r = await props.api.storeApprove(props.token, amount);
+    switch (r.kind) {
+      case 'tx-rejected': props.onClose("The transaction was rejected in metamask");
+      case 'success': break;
+    }
 
     // Deposit tokens to the store
     await props.api.storeDeposit(props.token, amount);
@@ -247,7 +265,7 @@ function DepositModal(props: {
       </div>
       <div className="Buttons">
         <button onClick={go} disabled={!formValid || inProgress} >Go</button>
-        <button onClick={props.onClose} disabled={inProgress}>Cancel</button>
+        <button onClick={() => props.onClose()} disabled={inProgress}>Cancel</button>
       </div>
     </div>
   );
@@ -284,6 +302,20 @@ function WithdrawalModal(props: {
       <div className="Buttons">
         <button onClick={go} disabled={!formValid || inProgress} >Go</button>
         <button onClick={props.onClose} disabled={inProgress}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function MessageModal(props: {
+  message: string,
+  onClose: () => void,
+}) {
+  return (
+    <div>
+      {props.message}
+      <div className="Buttons">
+        <button onClick={() => props.onClose()}>OK</button>
       </div>
     </div>
   );
