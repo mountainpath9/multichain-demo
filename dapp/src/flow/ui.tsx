@@ -87,8 +87,8 @@ function HomeUI(props: {
       <tr>
         <td>{`${balance.token.symbol} (${balance.token.address})`}</td>
         <td>{formatUnits(balance.balance, balance.token.decimals)}</td>
-        <td><button onClick={() => deposit(balance)}>Deposit...</button></td>
-        <td><button onClick={() => withdrawal(balance)}>Withdraw...</button></td>
+        <td><button className={"TableButton"} onClick={() => deposit(balance)}>Deposit</button></td>
+        <td><button className={"TableButton"} onClick={() => withdrawal(balance)}>Withdraw</button></td>
       </tr>
     )
   }
@@ -121,7 +121,7 @@ function HomeUI(props: {
     <div>
       {renderTokenTable(balances)}
       <div>
-        <button onClick={depositNew}>Deposit new token...</button>
+        <button className="ActionButton" onClick={depositNew}>Deposit new token</button>
       </div>
     </div>
   );
@@ -156,8 +156,8 @@ function DepositNewUI(props: {
         {renderField("Token Address", tokenField, inProgress)}
       </div>
       <div className="Buttons">
-        <button onClick={go} disabled={!formValid || inProgress} >Go</button>
-        <button onClick={cancel} disabled={inProgress}>Cancel</button>
+        <button className="CancelButton" onClick={cancel} disabled={inProgress}>Back</button>
+        <button className="ActionButton" onClick={go} disabled={!formValid || inProgress} >Next</button>
       </div>
     </div>
   );
@@ -212,8 +212,8 @@ function DepositUI(props: {
       {renderField("Amount", amountField, inProgress)}
       </div>
       <div className="Buttons">
-        <button onClick={go} disabled={!formValid || inProgress} >Go</button>
-        <button onClick={cancel} disabled={inProgress}>Cancel</button>
+        <button className="CancelButton" onClick={cancel} disabled={inProgress}>Back</button>
+        <button className="ActionButton" onClick={go} disabled={!formValid || inProgress} >Next</button>
       </div>
     </div>
   );
@@ -254,8 +254,9 @@ function WithdrawalUI(props: {
       {renderField("Amount", amountField, inProgress)}
       </div>
       <div className="Buttons">
-        <button onClick={go} disabled={!formValid || inProgress} >Go</button>
-        <button onClick={cancel} disabled={inProgress}>Cancel</button>
+        <button className="CancelButton" onClick={cancel} disabled={inProgress}>Back</button>
+        <button className="ActionButton" onClick={go} disabled={!formValid || inProgress} >Next</button>
+
       </div>
     </div>
   );

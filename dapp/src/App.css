@@ -10,7 +10,37 @@
 }
 
 .Buttons > button {
-  margin-right: 5px;
+  margin-right: 10px;
+}
+
+.ActionButton {
+  background-color: #0084ff;
+  color: white;
+  border: 1px solid;
+  border-radius: 5px;
+  border-color: #0084ff;
+  padding: 8px 16px;
+}
+
+.ActionButton:disabled {
+  opacity: 0.25;
+}
+
+.CancelButton {
+  background-color: lightgray;
+  border: 1px solid;
+  border-radius: 5px;
+  border-color: lightgray;
+  padding: 8px 16px;
+}
+
+.TableButton {
+  background-color: #0084ff;
+  color: white;
+  border: 1px solid;
+  border-radius: 3px;
+  border-color: #0084ff;
+  padding: 4px 6px;
 }
 
 .Form {
@@ -22,8 +52,34 @@
   display: flex;
   flex-direction: row;
   gap: 10px;
+  align-items: center;
+}
+
+.Field > input {
+  padding: 5px;
+  border: 1px solid;
+  border-radius: 3px;
+  font-size: medium;
+}
+
+input:focus{
+  outline: none;
 }
 
 .Field-Error {
   color: red;
+}
+
+table {
+  border: 1px solid;
+  border-collapse: collapse;
+}
+
+thead {
+  background-color: #e0e0e0;
+  border-bottom: 1px solid;
+}
+
+td,th {
+  padding: 10px;  
 }
