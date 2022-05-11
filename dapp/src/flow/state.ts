@@ -2,39 +2,42 @@
 import { TokenMetadata } from "../api";
 import { BigNumber } from 'ethers';
 
-export type State = StateHome | StateDepositNew | StateDeposit | StateWithdrawal | StateError;
+export type State
+  = { kind: "home" } & StateHome
+  | { kind: "deposit-new" } & StateDepositNew
+  | { kind: "deposit" } & StateDeposit
+  | { kind: "withdrawal" } & StateWithdrawal
+  | { kind: "message" } & StateError;
 
 export interface StateHome {
-  kind: "home",
   depositNew(): State,
   deposit(token: TokenMetadata): State,
   withdrawal(token: TokenMetadata, balance: BigNumber): State,
 };
   
 export interface StateDepositNew {
-  kind: "deposit-new",
   cancel(): State,
   deposit(token: TokenMetadata): State,
 };
 
 export interface StateDeposit {
-  kind: "deposit",
   token: TokenMetadata,
+
   error(message: string): State,
   done(): State,
 }
 
 export interface StateWithdrawal {
-  kind: "withdrawal",
   token: TokenMetadata,
   balance: BigNumber,
+
   error(message: string): State,
   done(): State,
 }
 
 export interface StateError {
-  kind: "message",
   message: string,
+  
   done(): State,
 }
 

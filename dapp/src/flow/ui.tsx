@@ -50,7 +50,7 @@ interface StoreTokenBalance {
 
   
 function HomeUI(props: {
-  api: Api,
+  api: Pick<Api, 'getStoreBalances'>,
   state: flow.StateHome,
   setState: (s: flow.State) => void,
 }) {
@@ -128,7 +128,7 @@ function HomeUI(props: {
 }
 
 function DepositNewUI(props: {
-  api: Api,
+  api: Pick<Api, 'getTokenMetadata'>,
   state: flow.StateDepositNew,
   setState: (s: flow.State) => void,
 }) {
@@ -164,7 +164,7 @@ function DepositNewUI(props: {
 }
 
 function DepositUI(props: {
-  api: Api,
+  api: Pick<Api, 'storeApprove' | 'storeDeposit'>,
   state: flow.StateDeposit,
   setState: (s: flow.State) => void,
 }) {
@@ -220,7 +220,7 @@ function DepositUI(props: {
 }
 
 function WithdrawalUI(props: {
-  api: Api,
+  api: Pick<Api, 'storeWithdraw'>,
   state: flow.StateWithdrawal,
   setState: (s: flow.State) => void,
 }) {
