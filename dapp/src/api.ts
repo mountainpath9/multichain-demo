@@ -12,14 +12,14 @@ export interface Api {
   getTokenMetadata (address: string): Promise<TokenMetadata>;
 
   // Allow the token store to transfer amount of the specified token
-  storeApprove(token: TokenMetadata, amount: BigNumber): Promise<TxResult<void>>;
+  storeApprove(token: TokenMetadata, amount: BigNumber): TxPromise<void>;
 
   // Deposit the specified amount of the token into the store
   // (requires approval)
-  storeDeposit(token: TokenMetadata, amount: BigNumber): Promise<void>;
+  storeDeposit(token: TokenMetadata, amount: BigNumber): TxPromise<void>;
 
   // Withdraw the specified amount of the token from the store
-  storeWithdraw(token: TokenMetadata, amount: BigNumber): Promise<void>;
+  storeWithdraw(token: TokenMetadata, amount: BigNumber): TxPromise<void>;
 
   // Fetch the current balances in the store
   getStoreBalances(): Promise<StoreTokenBalance[]>;
@@ -41,9 +41,15 @@ export interface StoreTokenBalance {
   balance: BigNumber,
 };
 
+export type TxPromise<T> = Promise<TxResult<T>>;
+
 export type TxResult<T> 
   = { kind: 'success', result: T}
-  | { kind: 'tx-rejected' }
+  | TxError
+  ;
+
+export type TxError 
+  = { kind: 'tx-rejected' }
   ;
 
 class ApiImpl implements Api {
@@ -62,7 +68,7 @@ class ApiImpl implements Api {
       return {address, symbol, name, decimals};
   }
 
-  async storeApprove(tokenMetadata: TokenMetadata, amount: BigNumber): Promise<TxResult<void>> {
+  async storeApprove(tokenMetadata: TokenMetadata, amount: BigNumber): TxPromise<void> {
       const token = IERC20__factory.connect(tokenMetadata.address, this.signer);
       return catchTxErrors(async () => {
         const tx = await token.approve(this.tokenStore.address, amount);
@@ -70,14 +76,18 @@ class ApiImpl implements Api {
       });
   }
 
-  async storeDeposit(tokenMetadata: TokenMetadata, amount: BigNumber): Promise<void> {
-    const tx = await this.tokenStore.deposit(tokenMetadata.address, amount);
-    await tx.wait();
+  async storeDeposit(tokenMetadata: TokenMetadata, amount: BigNumber): TxPromise<void> {
+    return catchTxErrors(async () => {
+      const tx = await this.tokenStore.deposit(tokenMetadata.address, amount);
+      await tx.wait();
+    });
   }
 
-  async storeWithdraw(tokenMetadata: TokenMetadata, amount: BigNumber): Promise<void> {
-    const tx = await this.tokenStore.withdraw(tokenMetadata.address, amount);
-    await tx.wait();
+  async storeWithdraw(tokenMetadata: TokenMetadata, amount: BigNumber): TxPromise<void> {
+    return catchTxErrors(async () => {
+      const tx = await this.tokenStore.withdraw(tokenMetadata.address, amount);
+      await tx.wait();
+    });
   }
 
   async getStoreBalances(): Promise<StoreTokenBalance[]> {
@@ -99,6 +109,7 @@ async  function catchTxErrors<T>(fn: () => Promise<T> ): Promise<TxResult<T>> {
     return {kind:'success', result};
   } catch (e) {
     if ((e as any).code === 4001) {
+      // Metamask rejected the request
       return {kind:'tx-rejected'};
     }
     throw e;
