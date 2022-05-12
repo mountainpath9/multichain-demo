@@ -7,7 +7,7 @@ export type State
   | { kind: "deposit-new" } & StateDepositNew
   | { kind: "deposit" } & StateDeposit
   | { kind: "withdrawal" } & StateWithdrawal
-  | { kind: "message" } & StateError;
+  | { kind: "error" } & StateError;
 
 export interface StateHome {
   depositNew(): State,
@@ -42,7 +42,7 @@ export interface StateError {
 }
 
 
-export function stateHome(): State {
+export function stateHome(): { kind: "home"} & StateHome {
   return {
     kind:"home",
     depositNew: stateDepositNew,
@@ -51,7 +51,7 @@ export function stateHome(): State {
   }
 }
 
-export function stateDepositNew(): State {
+export function stateDepositNew(): { kind: "deposit-new"} & StateDepositNew {
   return {
     kind:"deposit-new",
     cancel: stateHome,
@@ -59,7 +59,7 @@ export function stateDepositNew(): State {
   }
 }
 
-export function stateDeposit(token: TokenMetadata): State {
+export function stateDeposit(token: TokenMetadata): { kind: "deposit" } & StateDeposit {
   return {
     kind:"deposit",
     token,
@@ -68,7 +68,7 @@ export function stateDeposit(token: TokenMetadata): State {
   }
 }
 
-export function stateWithdrawal(token: TokenMetadata, balance: BigNumber): State {
+export function stateWithdrawal(token: TokenMetadata, balance: BigNumber): { kind: "withdrawal" } & StateWithdrawal {
   return {
     kind:"withdrawal",
     token,
@@ -78,9 +78,9 @@ export function stateWithdrawal(token: TokenMetadata, balance: BigNumber): State
   }
 }
 
-export function stateError(message: string): State {
+export function stateError(message: string): { kind: "error" } & StateError {
   return {
-    kind:"message",
+    kind:"error",
     message,
     done: stateHome,
   }
