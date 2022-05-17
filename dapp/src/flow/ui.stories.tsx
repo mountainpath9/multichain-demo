@@ -17,6 +17,7 @@ storiesOf('Store/Whole Flow', module)
       api={fakeApi}
       />;
   })
+;
 
 storiesOf('Store/Flow Components', module)
   .add('Home (empty)', () => {

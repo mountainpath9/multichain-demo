@@ -82,9 +82,9 @@ export function HomeUI(props: {
     props.setState(props.state.withdrawal(balance.token, balance.balance));
   } 
   
-  function renderBalance(balance: StoreTokenBalance) {
+  function renderBalance(balance: StoreTokenBalance, i: number) {
     return (
-      <tr>
+      <tr key={i}>
         <td>{`${balance.token.symbol} (${balance.token.address})`}</td>
         <td>{formatUnits(balance.balance, balance.token.decimals)}</td>
         <td><button className={"TableButton"} onClick={() => deposit(balance)}>Deposit</button></td>
