@@ -10,6 +10,7 @@ import * as state from './state';
 import * as api from '../api';
 
 import '../App.css';
+import { syncBuiltinESMExports } from 'module';
 
 storiesOf('Store/Whole Flow', module)
   .add('Flow', () => {
@@ -66,6 +67,15 @@ storiesOf('Store/Flow Components', module)
       setState={action('next state')}
       />;
   })
+  .add('AwaitingConfirmation', () => {
+    return <ui.AwaitingConfirmationUI
+      state={state.stateAwaitingConfirmation(
+        (async () => {await sleep(5000); return {kind:"success",result:undefined}})(),
+        "Waiting for something"
+      )}
+      setState={action('next state')}
+      />;
+  })
   .add('Error', () => {
     return <ui.ErrorUI
       state={state.stateError("Something went wrong")}
@@ -104,10 +114,16 @@ const fakeApi: api.Api = (function(): api.Api {
 
   async function storeApprove(token: api.TokenMetadata, amount: BigNumber): api.TxPromise<void> {
     action('storeApprove')();
+    await sleep(1000);
     return {kind:'success', result: undefined};
   }
   async function storeDeposit(token: api.TokenMetadata, amount: BigNumber): api.TxPromise<void> {
     action('storeDeposit')();
+    await sleep(1000);
+    if (amount.gte(parseUnits("10"))) {
+      // A way to trigger an error
+      return {kind:'tx-rejected'};
+    }
     for(let b of balances) {
       if (token.address == b.token.address) {
         b.balance = b.balance.add(amount);
@@ -117,13 +133,18 @@ const fakeApi: api.Api = (function(): api.Api {
   }
       
   async function storeWithdraw(token: api.TokenMetadata, amount: BigNumber): api.TxPromise<void> {
-    action('storeWithdraw')();
+    action('storeWithdraw')();    
+    await sleep(1000);
     for(let b of balances) {
       if (token.address == b.token.address) {
+        if (amount.gt(b.balance)) {
+          return {kind:'tx-rejected'};
+        }
         b.balance = b.balance.sub(amount);
+        return {kind:'success', result: undefined};
       }
     }
-    return {kind:'success', result: undefined};
+    return {kind:'tx-rejected'};
   }
       
   async function getStoreBalances(): Promise<api.StoreTokenBalance[]> {
@@ -139,3 +160,7 @@ const fakeApi: api.Api = (function(): api.Api {
   };
 
 })();
+
+function sleep(ms: number) {
+  return new Promise( resolve => setTimeout(resolve, ms));
+}

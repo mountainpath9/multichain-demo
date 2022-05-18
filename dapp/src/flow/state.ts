@@ -1,5 +1,5 @@
 
-import { TokenMetadata } from "../api";
+import { TokenMetadata, TxResult } from "../api";
 import { BigNumber } from 'ethers';
 
 export type State
@@ -7,6 +7,7 @@ export type State
   | { kind: "deposit-new" } & StateDepositNew
   | { kind: "deposit" } & StateDeposit
   | { kind: "withdrawal" } & StateWithdrawal
+  | { kind: "awaiting-confirmation"} & StateAwaitingConfirmation
   | { kind: "error" } & StateError;
 
 export interface StateHome {
@@ -17,28 +18,36 @@ export interface StateHome {
   
 export interface StateDepositNew {
   cancel(): State,
-  deposit(token: TokenMetadata): State,
+  next(token: TokenMetadata): State,
 };
 
 export interface StateDeposit {
   token: TokenMetadata,
 
-  error(message: string): State,
-  done(): State,
+  cancel(): State,
+  next(action: Promise<TxResult<void>>, message : string): State,
 }
 
 export interface StateWithdrawal {
   token: TokenMetadata,
   balance: BigNumber,
 
+  cancel(): State,
+  next(action: Promise<TxResult<void>>, message : string): State,
+}
+
+export interface StateAwaitingConfirmation {
+  action: Promise<TxResult<void>>,  // The action that we are awaiting
+  message: string,                  // The message we want to show whilst waiting
+
   error(message: string): State,
-  done(): State,
+  next(): State,
 }
 
 export interface StateError {
   message: string,
   
-  done(): State,
+  next(): State,
 }
 
 
@@ -55,7 +64,7 @@ export function stateDepositNew(): { kind: "deposit-new"} & StateDepositNew {
   return {
     kind:"deposit-new",
     cancel: stateHome,
-    deposit: stateDeposit,
+    next: stateDeposit,
   }
 }
 
@@ -63,8 +72,8 @@ export function stateDeposit(token: TokenMetadata): { kind: "deposit" } & StateD
   return {
     kind:"deposit",
     token,
-    done: stateHome,
-    error: stateError,
+    cancel: stateHome,
+    next: stateAwaitingConfirmation,
   }
 }
 
@@ -73,15 +82,25 @@ export function stateWithdrawal(token: TokenMetadata, balance: BigNumber): { kin
     kind:"withdrawal",
     token,
     balance,
-    done: stateHome,
-    error: stateError,
+    cancel: stateHome,
+    next: stateAwaitingConfirmation,
   }
+}
+
+export function stateAwaitingConfirmation(action: Promise<TxResult<void>>, message: string): {kind: "awaiting-confirmation"} & StateAwaitingConfirmation {
+  return {
+    kind:"awaiting-confirmation",
+    action,
+    message,
+    error: stateError,
+    next: stateHome,
+  };
 }
 
 export function stateError(message: string): { kind: "error" } & StateError {
   return {
     kind:"error",
     message,
-    done: stateHome,
+    next: stateHome,
   }
 }

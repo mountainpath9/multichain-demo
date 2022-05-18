@@ -3,7 +3,7 @@ import { BigNumber } from 'ethers';
 
 import { useTypedFieldState, TypedFieldState } from '../util/fields/hooks';
 import { ETH_ADDRESS_FIELD, tokenAmountField } from '../util/fields/ethers';
-import { Api, TokenMetadata, TxError } from "../api";
+import { Api, TokenMetadata, TxError, TxResult } from "../api";
 
 import * as flow from "./state";
 import { formatUnits } from 'ethers/lib/utils';
@@ -34,6 +34,11 @@ export function FlowUi(props: {api: Api}) {
       api={props.api}
       state={state}
       setState={setState}
+    />;
+  } else if (state.kind == "awaiting-confirmation") {
+      return <AwaitingConfirmationUI 
+        state={state}
+        setState={setState}
     />;
   } else {
     return <ErrorUI 
@@ -141,7 +146,7 @@ export function DepositNewUI(props: {
   async function go() {
     setInProgress(true);
     const token = await props.api.getTokenMetadata(tokenField.value());
-    props.setState(props.state.deposit(token));
+    props.setState(props.state.next(token));
     setInProgress(false);
   }
 
@@ -175,7 +180,7 @@ export function DepositUI(props: {
   const formValid = amountField.isValid();
 
   async function cancel() {
-    props.setState(props.state.done());
+    props.setState(props.state.cancel());
   }
 
   async function go() {
@@ -183,26 +188,16 @@ export function DepositUI(props: {
 
     const amount = amountField.value();
 
-    // add allowance
-    {
-      const r = await props.api.storeApprove(token, amount);
-      if (r.kind != 'success') {
-        props.setState(props.state.error(txErrorMessage(r)));
-        return;
+    async function doDeposit() : Promise<TxResult<void>> {
+      const r1 = await props.api.storeApprove(token, amount);
+      if (r1.kind != 'success') {
+        return r1;
       }
+      const r2 = await props.api.storeDeposit(token, amount);
+      return r2;
     }
-
-    // Deposit tokens to the store
-    {
-      const r = await props.api.storeDeposit(token, amount);
-      if (r.kind != 'success') {
-        props.setState(props.state.error(txErrorMessage(r)));
-        return;
-      }
-    }
-
-    setInProgress(false);
-    props.setState(props.state.done());
+    const action = doDeposit();
+    props.setState(props.state.next(action, "Deposit transaction in progress"));
   }
 
   return (
@@ -232,19 +227,15 @@ export function WithdrawalUI(props: {
   const formValid = amountField.isValid() && amountField.value().lte(props.state.balance);
 
   async function cancel() {
-    props.setState(props.state.done());
+    props.setState(props.state.cancel());
   }
 
   async function go() {
     setInProgress(true);
     const amount = amountField.value();
-    const r = await props.api.storeWithdraw(token, amount);
-    if (r.kind != 'success') {
-      props.setState(props.state.error(txErrorMessage(r)));
-      return;
-    }
+    const action = props.api.storeWithdraw(token, amount);
     setInProgress(false);
-    props.setState(props.state.done());  
+    props.setState(props.state.next(action, "Withdrawal transaction in progress"));  
   }
 
   return (
@@ -262,9 +253,36 @@ export function WithdrawalUI(props: {
   );
 }
 
+export function AwaitingConfirmationUI(props: {
+  state: flow.StateAwaitingConfirmation,
+  setState: (s: flow.State) => void,
+}) {
+
+  useEffect(() => {
+    async function transitionWhenCompleted() {
+      const r = await props.state.action;
+      if (r.kind == "success") {
+        props.setState(props.state.next());
+      } else {
+        props.setState(props.state.error(txErrorMessage(r)));
+
+      }
+    }
+
+    transitionWhenCompleted();
+  }, []);
+
+  return (
+    <div className="Waiting">
+      {props.state.message}...
+      <div className="sbl-circ-ripple"></div>
+    </div>
+  );
+}
+
 function txErrorMessage(error: TxError) {
   switch (error.kind) {
-    case "tx-rejected": return "Transaction rejected in metamask";
+    case "tx-rejected": return "Transaction rejected";
   }
 }
 
@@ -276,7 +294,7 @@ export function ErrorUI(props: {
     <div>
       {props.state.message}
       <div className="Buttons">
-        <button onClick={() => props.setState(props.state.done())}>OK</button>
+        <button onClick={() => props.setState(props.state.next())}>OK</button>
       </div>
     </div>
   );
