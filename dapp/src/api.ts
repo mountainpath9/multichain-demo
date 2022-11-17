@@ -1,4 +1,5 @@
-import { Signer, BigNumber } from "ethers";
+import { providers, Signer, BigNumber } from "ethers";
+import * as ethers from "ethers";
 
 import {TokenStore} from "types/typechain/TokenStore";
 import {TokenStore__factory} from "types/typechain/factories/TokenStore__factory";
@@ -9,7 +10,13 @@ import {IERC20__factory} from "types/typechain/factories/IERC20__factory";
 //
 export interface Api {
   // Get the metadata for any ERC20 token
-  getTokenMetadata (address: string): Promise<TokenMetadata>;
+  getTokenMetadata (tokenConfig: TokenConfig): Promise<TokenMetadata>;
+
+  // Get the token supply
+  getTokenSupply(token: TokenMetadata): Promise<BigNumber>;
+
+  // The the balance of a token account
+  getTokenBalance(token: TokenMetadata, address: string): Promise<BigNumber>;
 
   // Allow the token store to transfer amount of the specified token
   storeApprove(token: TokenMetadata, amount: BigNumber): TxPromise<void>;
@@ -25,12 +32,19 @@ export interface Api {
   getStoreBalances(): Promise<StoreTokenBalance[]>;
 };
 
-export function createApi(signer: Signer, tokenStoreAddr: string): Api {
-  return new ApiImpl(signer, tokenStoreAddr);
+type ProviderUrls = {[chainId:string] : string};
+
+interface TokenConfig {
+  address: string,
+  chainId: number,
+}
+
+export function createApi(providerUrls: ProviderUrls, signer: Signer, tokenStoreAddr: string): Api {
+  return new ApiImpl(providerUrls, signer, tokenStoreAddr);
 }
 
 export interface TokenMetadata {
-  address: string,
+  config: TokenConfig,
   symbol: string,
   name: string,
   decimals: number,
@@ -55,21 +69,50 @@ export type TxError
 class ApiImpl implements Api {
 
   readonly tokenStore: TokenStore;
+  providers: {[chainId: string]: providers.BaseProvider} = {};
 
-  constructor(readonly signer: Signer, tokenStoreAddr: string) {
+  constructor(readonly providerUrls: ProviderUrls, readonly signer: Signer, tokenStoreAddr: string) {
     this.tokenStore = TokenStore__factory.connect(tokenStoreAddr, signer);
   }
 
-  async getTokenMetadata(address: string): Promise<TokenMetadata> {
-      const token = await IERC20Metadata__factory.connect(address, this.signer);
-      const symbol = await token.symbol();
-      const name = await token.name();
-      const decimals = await token.decimals();
-      return {address, symbol, name, decimals};
+  getProvider(chainId: number): providers.BaseProvider {
+    const chainIdKey = chainId.toString();
+    let provider = this.providers[chainIdKey];
+    if (provider === undefined) {
+      const url = this.providerUrls[chainIdKey];
+      if (url === undefined) {
+        throw new Error("No provider url configured for chain id " + chainIdKey);
+      }
+      console.log("new provider for chain " + chainId + " via " + url);
+      provider = ethers.getDefaultProvider(url);
+      this.providers[chainIdKey] = provider;
+    }
+    return provider;
+  }
+
+  async getTokenMetadata(config: TokenConfig): Promise<TokenMetadata> {
+    const provider = await this.getProvider(config.chainId);
+    const token = await IERC20Metadata__factory.connect(config.address, provider);
+    const symbol = await token.symbol();
+    const name = await token.name();
+    const decimals = await token.decimals();
+    return {config, symbol, name, decimals};
+  }
+
+  async getTokenSupply(tokenMetadata: TokenMetadata): Promise<BigNumber> {
+    const provider = await this.getProvider(tokenMetadata.config.chainId);
+    const token = await IERC20Metadata__factory.connect(tokenMetadata.config.address, provider);
+    return await token.totalSupply();
+  }
+
+  async getTokenBalance(tokenMetadata: TokenMetadata, address: string): Promise<BigNumber> {
+    const provider = await this.getProvider(tokenMetadata.config.chainId);
+    const token = await IERC20Metadata__factory.connect(tokenMetadata.config.address, provider);
+    return await token.balanceOf(address);
   }
 
   async storeApprove(tokenMetadata: TokenMetadata, amount: BigNumber): TxPromise<void> {
-      const token = IERC20__factory.connect(tokenMetadata.address, this.signer);
+      const token = IERC20__factory.connect(tokenMetadata.config.address, this.signer);
       return catchTxErrors(async () => {
         const tx = await token.approve(this.tokenStore.address, amount);
         await tx.wait();
@@ -78,27 +121,27 @@ class ApiImpl implements Api {
 
   async storeDeposit(tokenMetadata: TokenMetadata, amount: BigNumber): TxPromise<void> {
     return catchTxErrors(async () => {
-      const tx = await this.tokenStore.deposit(tokenMetadata.address, amount);
+      const tx = await this.tokenStore.deposit(tokenMetadata.config.address, amount);
       await tx.wait();
     });
   }
 
   async storeWithdraw(tokenMetadata: TokenMetadata, amount: BigNumber): TxPromise<void> {
     return catchTxErrors(async () => {
-      const tx = await this.tokenStore.withdraw(tokenMetadata.address, amount);
+      const tx = await this.tokenStore.withdraw(tokenMetadata.config.address, amount);
       await tx.wait();
     });
   }
 
   async getStoreBalances(): Promise<StoreTokenBalance[]> {
     const result: StoreTokenBalance[] = [];
-    for(let b of await this.tokenStore.getBalances()) {
-      const token = await this.getTokenMetadata(b.erc20Token);
-      result.push({
-        token,
-        balance: b.balance,
-      });
-    }
+    // for(let b of await this.tokenStore.getBalances()) {
+    //   const token = await this.getTokenMetadata(b.erc20Token);
+    //   result.push({
+    //     token,
+    //     balance: b.balance,
+    //   });
+    // }
     return result;
   }
 }
