@@ -8,7 +8,10 @@ import { VMap } from "./util/vmap";
 //
 export interface Api {
   chains: VMap<ChainId,ChainConfig>;
-  
+
+  // The native currency balance of an account
+  getNativeBalance(chainId: ChainId, address: string): Promise<BigNumber>;
+
   // Get the metadata for any ERC20 token
   getTokenMetadata (tokenConfig: TokenConfig): Promise<TokenMetadata>;
 
@@ -19,12 +22,14 @@ export interface Api {
   getTokenBalance(token: TokenMetadata, address: string): Promise<BigNumber>;
 };
 
-type ChainId = number;
+export type ChainId = number;
 
-interface ChainConfig {
+export interface ChainConfig {
   name: string,
   chainId: ChainId,
   rpcUrl: string,
+  nativeCurrency: string,
+  nativeCurrencyDecimals: number,
 }
 
 interface TokenConfig {
@@ -72,6 +77,11 @@ class ApiImpl implements Api {
     }
   }
 
+  async getNativeBalance(chainId: ChainId, address: string): Promise<BigNumber> {
+    const provider = await this.getProvider(chainId);
+    return await provider.getBalance(address);
+  }
+
   getProvider(chainId: ChainId): providers.BaseProvider {
 
     let provider = this.providers.get(chainId);
@@ -90,9 +100,11 @@ class ApiImpl implements Api {
   async getTokenMetadata(config: TokenConfig): Promise<TokenMetadata> {
     const provider = await this.getProvider(config.chainId);
     const token = await IERC20Metadata__factory.connect(config.address, provider);
-    const symbol = await token.symbol();
-    const name = await token.name();
-    const decimals = await token.decimals();
+    const [symbol, name, decimals] = await Promise.all([
+      token.symbol(),
+      token.name(),
+      token.decimals(),
+    ]);
     return {config, symbol, name, decimals};
   }
 

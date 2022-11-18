@@ -2,18 +2,24 @@ const MAINNET =   {
   name: "mainnet",
   chainId: 1,
   rpcUrl: import.meta.env.VITE_MAINNET_RPC_URL,
+  nativeCurrency: "ETH",
+  nativeCurrencyDecimals: 18,
 }
 
 const ARBITRUM =   {
   name: "arbitrum",
   chainId: 42161,
   rpcUrl: import.meta.env.VITE_ARBITRUM_RPC_URL,
+  nativeCurrency: "ETH",
+  nativeCurrencyDecimals: 18,
 }
 
 const GNOSIS = {
   name: "gnosis",
   chainId: 100,
   rpcUrl: import.meta.env.VITE_GNOSIS_RPC_URL,
+  nativeCurrency: "xDAI",
+  nativeCurrencyDecimals: 18,
 }
 
 export const CHAINS = [
