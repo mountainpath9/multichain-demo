@@ -1,12 +1,14 @@
-import { providers, Signer, BigNumber } from "ethers";
+import { providers, BigNumber } from "ethers";
 import * as ethers from "ethers";
 
 import {IERC20Metadata__factory} from "types/typechain/factories/IERC20Metadata__factory";
-import {IERC20__factory} from "types/typechain/factories/IERC20__factory";
+import { VMap } from "./util/vmap";
 
 // API capturing all on chain interactions
 //
 export interface Api {
+  chains: VMap<ChainId,ChainConfig>;
+  
   // Get the metadata for any ERC20 token
   getTokenMetadata (tokenConfig: TokenConfig): Promise<TokenMetadata>;
 
@@ -17,11 +19,11 @@ export interface Api {
   getTokenBalance(token: TokenMetadata, address: string): Promise<BigNumber>;
 };
 
-type ProviderUrls = {[chainId:string] : string};
+type ChainId = number;
 
 interface ChainConfig {
   name: string,
-  chainId: number,
+  chainId: ChainId,
   rpcUrl: string,
 }
 
@@ -59,22 +61,28 @@ export type TxError
 
 class ApiImpl implements Api {
 
-  providers: {[chainId: string]: providers.BaseProvider} = {};
+  chains:    VMap<ChainId,ChainConfig>;
+  providers: VMap<ChainId,providers.BaseProvider>;
 
-  constructor(readonly chains: ChainConfig[]) {
+  constructor(readonly chainConfigs: ChainConfig[]) {
+    this.chains = new VMap<ChainId,ChainConfig>(cid => cid.toString());
+    this.providers = new VMap<ChainId,providers.BaseProvider>(cid => cid.toString());
+    for(const cc of chainConfigs) {
+      this.chains.put(cc.chainId, cc);
+    }
   }
 
-  getProvider(chainId: number): providers.BaseProvider {
-    const chainIdKey = chainId.toString();
-    let provider = this.providers[chainIdKey];
+  getProvider(chainId: ChainId): providers.BaseProvider {
+
+    let provider = this.providers.get(chainId);
     if (provider === undefined) {
-      const chain = this.chains.find(c => c.chainId === chainId);
+      const chain = this.chains.get(chainId);
       if (chain === undefined) {
         throw new Error("No chain configured for chain id " + chainId);
       }
       console.log("new provider for chain " + chainId + " via " + chain.rpcUrl);
       provider = ethers.getDefaultProvider(chain.rpcUrl);
-      this.providers[chainIdKey] = provider;
+      this.providers.put(chainId, provider);
     }
     return provider;
   }
