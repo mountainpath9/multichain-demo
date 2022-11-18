@@ -1,15 +1,34 @@
 import { useState, useEffect, createElement } from 'react'
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
-import { PROVIDER_URLS, CONFIG } from "./configs/local";
-import { Api, createApi } from "./api";
-import { FlowUi } from "./flow/ui";
+import { CHAINS, TOKENS } from "./configs/local";
+import { Api, createApi, TokenMetadata } from "./api";
 
 import './App.css'
 
+
 function App() {
 
-  const [api, setApi] = useState<Api| null>(null);
+  const [api, setApi] = useState<Api| undefined>();
+  const [address, setAddress] = useState<string | undefined>()
+  const [tokenBalances, setTokenBalances] = useState<TokenBalance[] | undefined>();
+
+  useEffect(() => {
+    setApi(createApi(CHAINS));
+  }, [CHAINS]);
+
+  useEffect(() => {
+    async function load() {
+      if (api && address) {
+       const balances = await loadTokenBalances(api,address);
+       setTokenBalances(balances);
+      } else {
+        setTokenBalances(undefined);
+      }
+    }
+    load();
+  }, [api, address])
+
 
   async function metamaskConnect() {
     if (typeof window !== undefined) {
@@ -17,36 +36,9 @@ function App() {
       const provider = new ethers.providers.Web3Provider(ethereum)
       const signer = provider.getSigner();
       await provider.send("eth_requestAccounts", []);
-      const api = createApi(PROVIDER_URLS, signer, CONFIG.tokenStoreAddress);
-
       let address = await signer.getAddress();
-      console.log("address", address);
-      let tm =  await api.getTokenMetadata(CONFIG.daiMainnet);
-      console.log(
-       "mainnet dai",
-        tm,
-        await api.getTokenBalance(tm, address),
-        await api.getTokenSupply(tm),
-      );
-
-      tm =  await api.getTokenMetadata(CONFIG.daiArbitrum);
-      console.log(
-        "arbitrum dai",
-        tm,
-        await api.getTokenBalance(tm, address),
-        await api.getTokenSupply(tm,)
-      );
-
-      tm = await api.getTokenMetadata(CONFIG.daiGnosis); 
-      console.log(
-        "gnosis dai",
-        tm,
-        await api.getTokenBalance(tm, address),
-        await api.getTokenSupply(tm,)
-      );
-      setApi(api)
+      setAddress(address);
     }
-
   }
 
   function renderConnect() {
@@ -57,12 +49,70 @@ function App() {
     </p>;
   }
 
+  let content = undefined;
+
+  if (address === undefined) {
+    content = renderConnect();
+  } else if (tokenBalances == undefined) {
+    content = <div>loading...</div>
+  } else {
+    content = renderTokenBalances(tokenBalances);;
+  }
+
   return (
     <div className="App">
-      <h1>TokenStore</h1>
-      {api == null ? renderConnect() : <FlowUi api={api}/>}
+      <h1>Multichain Balances</h1>
+      {address && <p>Balances for {address}</p>}
+      {content}
     </div>
+  );
+}
+
+function renderTokenBalances(balances: TokenBalance[]): JSX.Element {
+  const rows = balances.map( b => {
+    const chainId = b.metadata.config.chainId;
+    const address = b.metadata.config.address;
+    const balance = ethers.utils.formatUnits(b.balance, b.metadata.decimals);
+    return (
+      <tr key={address + chainId}>
+        <td>{chainId}</td>
+        <td>{address}</td>
+        <td>{balance}</td>
+        <td></td>
+      </tr>
+    )
+  });
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Network</th>
+          <th>Contract</th>
+          <th>Balance</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows}
+      </tbody>
+    </table>
   )
+}
+
+interface TokenBalance {
+  metadata: TokenMetadata,
+  balance: BigNumber,
+}
+
+async function loadTokenBalances(api: Api, accountAddress: string): Promise<TokenBalance[]> {
+  const result: TokenBalance[] = [];
+  for(const t of TOKENS) {
+    const metadata = await api.getTokenMetadata(t);
+    const balance = await api.getTokenBalance(metadata, accountAddress);
+    result.push({metadata,balance});
+  }
+  return result;
 }
 
 export default App
