@@ -2,45 +2,45 @@ import { useState, useEffect, createElement } from 'react'
 import { BigNumber, ethers } from 'ethers';
 
 import { CHAINS, TOKENS } from "./configs/local";
-import { Api, ChainConfig, createApi, TokenMetadata } from "./api";
+import { ProviderApi, ChainConfig, createProviderApi, TokenMetadata, ChainId } from "./api";
 
 import './App.css'
 
 
 function App() {
 
-  const [api, setApi] = useState<Api| undefined>();
-  const [address, setAddress] = useState<string | undefined>();
+  const [api, setApi] = useState<ProviderApi| undefined>();
+  const [mmConnection, setMMConnection] = useState<MetamaskConnection | undefined>();
   const [nativeBalances, setNativeBalances] = useState<NativeBalance[] | undefined>();
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[] | undefined>();
 
   useEffect(() => {
-    setApi(createApi(CHAINS));
+    setApi(createProviderApi(CHAINS));
   }, [CHAINS]);
 
   useEffect(() => {
     async function load() {
-      if (api && address) {
-       const balances = await loadNativeBalances(api,address);
+      if (api && mmConnection) {
+       const balances = await loadNativeBalances(api,mmConnection.address);
        setNativeBalances(balances);
       } else {
         setNativeBalances(undefined);
       }
     }
     load();
-  }, [api, address])
+  }, [api, mmConnection])
 
   useEffect(() => {
     async function load() {
-      if (api && address) {
-       const balances = await loadTokenBalances(api,address);
+      if (api && mmConnection) {
+       const balances = await loadTokenBalances(api,mmConnection.address);
        setTokenBalances(balances);
       } else {
         setTokenBalances(undefined);
       }
     }
     load();
-  }, [api, address])
+  }, [api, mmConnection])
 
 
   async function metamaskConnect() {
@@ -50,7 +50,8 @@ function App() {
       const signer = provider.getSigner();
       await provider.send("eth_requestAccounts", []);
       let address = await signer.getAddress();
-      setAddress(address);
+      let chainId = await signer.getChainId();
+      setMMConnection({signer,chainId,address});
     }
   }
 
@@ -62,18 +63,47 @@ function App() {
     </p>;
   }
 
-  let connect = address == undefined && renderConnect();
+  function onSendToken(tmeta: TokenMetadata) {
+    console.log("Send some " + tmeta.symbol);
+  }
+
+  let connection = mmConnection ? renderMetamaskConnection(mmConnection) : renderConnect();
+
   let table1 = nativeBalances && renderNativeBalances(nativeBalances);
-  let table2 = tokenBalances && renderTokenBalances(tokenBalances);
+  let table2 = tokenBalances && renderTokenBalances(tokenBalances, onSendToken);
 
   return (
     <div className="App">
       <h1>Multichain Balances</h1>
-      {connect}
+      {connection}
       <div>{table1 || <p>Loading native balances...</p>}</div>
       <div>{table2 || <p>Loading token balances...</p>}</div>
     </div>
   );
+}
+
+interface MetamaskConnection {
+  signer: ethers.Signer,
+  chainId: ChainId,
+  address: string,
+}
+
+interface NativeBalance {
+  chain: ChainConfig,
+  balance: BigNumber,
+}
+
+interface TokenBalance {
+  metadata: TokenMetadata,
+  balance: BigNumber,
+}
+
+function renderMetamaskConnection(mmConnection: MetamaskConnection): JSX.Element {
+  return (
+    <div>
+      <p>Connected to: {mmConnection.address} on chain {mmConnection.chainId}</p>
+    </div>
+  )
 }
 
 function renderNativeBalances(balances: NativeBalance[]): JSX.Element {
@@ -107,7 +137,10 @@ function renderNativeBalances(balances: NativeBalance[]): JSX.Element {
 }
 
 
-function renderTokenBalances(balances: TokenBalance[]): JSX.Element {
+function renderTokenBalances(
+  balances: TokenBalance[],
+  onSend: (tm: TokenMetadata) => void
+  ): JSX.Element {
   const rows = balances.map( b => {
     const chainId = b.metadata.config.chainId;
     const address = b.metadata.config.address;
@@ -118,7 +151,7 @@ function renderTokenBalances(balances: TokenBalance[]): JSX.Element {
         <td>{b.metadata.symbol}</td>
         <td>{address}</td>
         <td>{balance}</td>
-        <td></td>
+        <td><button onClick={() => onSend(b.metadata)}>Send</button></td>
       </tr>
     )
   });
@@ -141,17 +174,7 @@ function renderTokenBalances(balances: TokenBalance[]): JSX.Element {
   )
 }
 
-interface NativeBalance {
-  chain: ChainConfig,
-  balance: BigNumber,
-}
-
-interface TokenBalance {
-  metadata: TokenMetadata,
-  balance: BigNumber,
-}
-
-async function loadTokenBalances(api: Api, accountAddress: string): Promise<TokenBalance[]> {
+async function loadTokenBalances(api: ProviderApi, accountAddress: string): Promise<TokenBalance[]> {
   return Promise.all(
     TOKENS.map(async t => {
       const metadata = await api.getTokenMetadata(t);
@@ -161,7 +184,7 @@ async function loadTokenBalances(api: Api, accountAddress: string): Promise<Toke
   )
 }
 
-async function loadNativeBalances(api: Api, accountAddress: string): Promise<NativeBalance[]> {
+async function loadNativeBalances(api: ProviderApi, accountAddress: string): Promise<NativeBalance[]> {
   return Promise.all(
     api.chains.values().map(async chain => {
       const balance = await api.getNativeBalance(chain.chainId, accountAddress);

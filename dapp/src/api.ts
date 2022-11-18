@@ -4,9 +4,9 @@ import * as ethers from "ethers";
 import {IERC20Metadata__factory} from "types/typechain/factories/IERC20Metadata__factory";
 import { VMap } from "./util/vmap";
 
-// API capturing all on chain interactions
+// API capturing on chain view functions that don't need to be signed.
 //
-export interface Api {
+export interface ProviderApi {
   chains: VMap<ChainId,ChainConfig>;
 
   // The native currency balance of an account
@@ -21,6 +21,14 @@ export interface Api {
   // The the balance of a token account
   getTokenBalance(token: TokenMetadata, address: string): Promise<BigNumber>;
 };
+
+export interface SignerApi {
+  // The chain of the current signer.
+  chainId: ChainId,
+
+  // Transfer some tokens to from the signer to an address
+  tokenTransfer(token: TokenMetadata, toAddress: String, amount: BigNumber): TxPromise<void>;
+}
 
 export type ChainId = number;
 
@@ -37,9 +45,15 @@ interface TokenConfig {
   chainId: number,
 }
 
-export function createApi(chains: ChainConfig[]): Api {
-  return new ApiImpl(chains);
+export function createProviderApi(chains: ChainConfig[]): ProviderApi {
+  return new ProviderApiImpl(chains);
 }
+
+export function createSignerApi(chainId: ChainId, signer: ethers.Signer): SignerApi {
+  return new SignerApiImpl(chainId, signer);
+}
+
+
 
 export interface TokenMetadata {
   config: TokenConfig,
@@ -53,18 +67,7 @@ export interface StoreTokenBalance {
   balance: BigNumber,
 };
 
-export type TxPromise<T> = Promise<TxResult<T>>;
-
-export type TxResult<T> 
-  = { kind: 'success', result: T}
-  | TxError
-  ;
-
-export type TxError 
-  = { kind: 'tx-rejected' }
-  ;
-
-class ApiImpl implements Api {
+class ProviderApiImpl implements ProviderApi {
 
   chains:    VMap<ChainId,ChainConfig>;
   providers: VMap<ChainId,providers.BaseProvider>;
@@ -120,6 +123,35 @@ class ApiImpl implements Api {
     return await token.balanceOf(address);
   }
 }
+
+class SignerApiImpl implements SignerApi {
+
+  constructor(readonly chainId: ChainId, readonly signer: ethers.Signer) {
+  }
+
+  async tokenTransfer(tmeta: TokenMetadata, toAddress: string, amount: BigNumber): TxPromise<void> {
+    if (tmeta.config.chainId != this.chainId) {
+      throw new Error("Signer and Token chain ids don't match");
+    }
+    const token = await IERC20Metadata__factory.connect(tmeta.config.address, this.signer);
+    return catchTxErrors( async () => {
+      const tx = await token.transfer(toAddress, amount);
+      await tx.wait();
+    })
+  }
+}
+
+
+export type TxPromise<T> = Promise<TxResult<T>>;
+
+export type TxResult<T> 
+  = { kind: 'success', result: T}
+  | TxError
+  ;
+
+export type TxError 
+  = { kind: 'tx-rejected' }
+  ;
 
 async  function catchTxErrors<T>(fn: () => Promise<T> ): Promise<TxResult<T>> {
   try {
