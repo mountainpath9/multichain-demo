@@ -5,6 +5,9 @@ import { CHAINS, TOKENS } from "./configs/local";
 import { ProviderApi, ChainConfig, createProviderApi, TokenMetadata, ChainId } from "./api";
 
 import './App.css'
+import { MetamaskConnection } from 'types';
+import { SendFlowState, stateShowForm } from "./flows/send/state";
+import { SendFlowUi} from "./flows/send/ui";
 
 
 function App() {
@@ -13,6 +16,7 @@ function App() {
   const [mmConnection, setMMConnection] = useState<MetamaskConnection | undefined>();
   const [nativeBalances, setNativeBalances] = useState<NativeBalance[] | undefined>();
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[] | undefined>();
+  const [sendState, setSendState] = useState<SendFlowState| undefined>();
 
   useEffect(() => {
     setApi(createProviderApi(CHAINS));
@@ -64,13 +68,22 @@ function App() {
   }
 
   function onSendToken(tmeta: TokenMetadata) {
-    console.log("Send some " + tmeta.symbol);
+    console.log("onSendToken", tmeta);
+    setSendState(stateShowForm(tmeta))
   }
+
+  let flow = sendState && mmConnection && (
+    <SendFlowUi
+      state={sendState}
+      setState={setSendState}
+      onDone={() => setSendState(undefined)}
+    />
+  );
 
   let connection = mmConnection ? renderMetamaskConnection(mmConnection) : renderConnect();
 
   let table1 = nativeBalances && renderNativeBalances(nativeBalances);
-  let table2 = tokenBalances && renderTokenBalances(tokenBalances, onSendToken);
+  let table2 = tokenBalances && renderTokenBalances(tokenBalances, sendState ? undefined : onSendToken);
 
   return (
     <div className="App">
@@ -78,15 +91,13 @@ function App() {
       {connection}
       <div>{table1 || <p>Loading native balances...</p>}</div>
       <div>{table2 || <p>Loading token balances...</p>}</div>
+      <div className="Form">
+        {flow}
+      </div>
     </div>
   );
 }
 
-interface MetamaskConnection {
-  signer: ethers.Signer,
-  chainId: ChainId,
-  address: string,
-}
 
 interface NativeBalance {
   chain: ChainConfig,
@@ -139,7 +150,7 @@ function renderNativeBalances(balances: NativeBalance[]): JSX.Element {
 
 function renderTokenBalances(
   balances: TokenBalance[],
-  onSend: (tm: TokenMetadata) => void
+  onSend: ((tm: TokenMetadata) => void) | undefined
   ): JSX.Element {
   const rows = balances.map( b => {
     const chainId = b.metadata.config.chainId;
@@ -151,7 +162,10 @@ function renderTokenBalances(
         <td>{b.metadata.symbol}</td>
         <td>{address}</td>
         <td>{balance}</td>
-        <td><button onClick={() => onSend(b.metadata)}>Send</button></td>
+        <td><button disabled={!onSend} onClick={() => {
+          onSend && onSend(b.metadata)}
+        }
+        >Send</button></td>
       </tr>
     )
   });
