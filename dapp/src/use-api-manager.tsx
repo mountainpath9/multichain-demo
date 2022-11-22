@@ -30,6 +30,7 @@ export function ApiManagerProvider(props: {chains: ChainConfig[],  children?: Re
       const provider = new ethers.providers.Web3Provider(ethereum, "any");
       const signer = provider.getSigner();
       let chainId = await signer.getChainId();
+      await provider.send("eth_requestAccounts", []);
 
       if (mChainId && mChainId !== chainId) {
         const toChain = api.chains.get(mChainId);

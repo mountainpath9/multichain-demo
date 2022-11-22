@@ -51,6 +51,6 @@ export const TOKENS = [
   },
   {
     address: '0x44fA8E6f47987339850636F88629646662444217',
-    chainId: 100,
+    chainId: GNOSIS.chainId,
   },
 ];

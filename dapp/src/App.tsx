@@ -29,9 +29,9 @@ function AppContent() {
   const api = apiManager.api;
   const metamask = apiManager.metamask;
 
-  useEffect(() => {
-    apiManager.connectMetamask();
-  }, []);
+  // useEffect(() => {
+  //   apiManager.connectMetamask();
+  // }, []);
 
   useEffect(() => {
     async function load() {
@@ -57,6 +57,14 @@ function AppContent() {
     load();
   }, [api, metamask])
 
+  function renderConnect() {
+    return <p>
+      <button type="button" onClick={() => apiManager.connectMetamask()}>
+        Connect to Metamask
+      </button>
+    </p>;
+  }
+
   async function onSendToken(tmeta: TokenMetadata) {
     await apiManager.connectMetamask(tmeta.config.chainId);
     setSendState(stateShowForm(tmeta))
@@ -70,7 +78,7 @@ function AppContent() {
     />
   );
 
-  let connection = renderMetamaskConnection(metamask);
+  let connection = metamask ? renderMetamaskConnection(metamask) : renderConnect();
   let chainId = metamask?.chainId || 0;
 
   let table1 = nativeBalances && renderNativeBalances(nativeBalances);
@@ -100,12 +108,8 @@ interface TokenBalance {
   balance: BigNumber,
 }
 
-function renderMetamaskConnection(mmConnection: MetamaskConnection | undefined): JSX.Element {
-  if (!mmConnection) {
-    return <p>Connecting...</p>;
-  } else {
-    return <p>Connected to: {mmConnection.address} on chain {mmConnection.chainId}</p>;
-  }
+function renderMetamaskConnection(mmConnection: MetamaskConnection): JSX.Element {
+  return <p>Connected to: {mmConnection.address} on chain {mmConnection.chainId}</p>;
 }
 
 function renderNativeBalances(balances: NativeBalance[]): JSX.Element {
