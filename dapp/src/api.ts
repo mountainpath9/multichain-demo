@@ -18,7 +18,7 @@ export interface ProviderApi {
   // Get the token supply
   getTokenSupply(token: TokenMetadata): Promise<BigNumber>;
 
-  // The the balance of a token account
+  // Get the balance of a token account
   getTokenBalance(token: TokenMetadata, address: string): Promise<BigNumber>;
 };
 
@@ -36,8 +36,12 @@ export interface ChainConfig {
   name: string,
   chainId: ChainId,
   rpcUrl: string,
-  nativeCurrency: string,
-  nativeCurrencyDecimals: number,
+  metamaskRpcUrl: string,
+  nativeCurrency: {
+    symbol: string,
+    name: string,
+    decimals: number,
+  }
 }
 
 interface TokenConfig {

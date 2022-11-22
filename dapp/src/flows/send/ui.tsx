@@ -1,7 +1,7 @@
 import * as flow from "./state";
-import { useState, useEffect } from 'react'
-import { TokenMetadata } from "api";
-import { MetamaskConnection } from "types";
+import { useEffect } from 'react'
+import { TypedFieldState, useTypedFieldState } from "../../util/fields/hooks";
+import { ETH_ADDRESS_FIELD, tokenAmountField } from "../../util/fields/ethers";
 
 interface FlowProps {
   onDone(): void,
@@ -33,6 +33,10 @@ function FormUI(props: {
   setState: (s: flow.SendFlowState) => void,
 }) {
 
+  const token = props.state.token;
+  const amountField = useTypedFieldState(tokenAmountField(token.decimals));
+  const addressField = useTypedFieldState(ETH_ADDRESS_FIELD);
+
   function onNext() {
     props.setState(props.state.next());
   }
@@ -40,6 +44,10 @@ function FormUI(props: {
   return (
     <div>
       <p>Sending {props.state.token.symbol} on network {props.state.token.config.chainId}...</p>
+      <div className="Form">
+        {renderField("amount", amountField, false)}
+        {renderField("to address", addressField, false)}
+      </div>
       <div className="Buttons">
         <button className="CancelButton" onClick={props.flowProps.onDone}>Cancel</button>
         <button className="ActionButton" onClick={onNext}>Next</button>
@@ -61,6 +69,16 @@ function AwaitingConfirmationUI(props: {
   return (
     <div>
       <p>Awaiting tx confirmation...</p>
+    </div>
+  );
+}
+
+function renderField<T>(label: String, field: TypedFieldState<T>, disabled: boolean) {
+  return (
+    <div className="Field">
+      <div>{label}:</div>
+      <input value={field.text} onChange={e => field.setText(e.target.value)}  disabled={disabled}/>
+      {field.isValid() ? null : <div className="Field-Error"> ← {field.validationError()}</div>}
     </div>
   );
 }

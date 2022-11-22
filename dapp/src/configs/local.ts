@@ -1,25 +1,37 @@
 const MAINNET =   {
-  name: "mainnet",
+  name: "Ethereum Mainnet",
   chainId: 1,
   rpcUrl: import.meta.env.VITE_MAINNET_RPC_URL,
-  nativeCurrency: "ETH",
-  nativeCurrencyDecimals: 18,
+  metamaskRpcUrl: "https://ethereum.publicnode.com",
+  nativeCurrency: {
+    name: "ETH",
+    symbol: "ETH",
+    decimals: 18,
+  }
 }
 
 const ARBITRUM =   {
-  name: "arbitrum",
+  name: "Arbitrum One",
   chainId: 42161,
   rpcUrl: import.meta.env.VITE_ARBITRUM_RPC_URL,
-  nativeCurrency: "ETH",
-  nativeCurrencyDecimals: 18,
+  metamaskRpcUrl: "https://arb1.arbitrum.io/rpc",
+  nativeCurrency: {
+    name: "ETH",
+    symbol: "ETH",
+    decimals: 18,
+  }
 }
 
 const GNOSIS = {
-  name: "gnosis",
+  name: "Gnosis",
   chainId: 100,
   rpcUrl: import.meta.env.VITE_GNOSIS_RPC_URL,
-  nativeCurrency: "xDAI",
-  nativeCurrencyDecimals: 18,
+  metamaskRpcUrl: "https://rpc.gnosischain.com",
+  nativeCurrency: {
+    name: "xDAI",
+    symbol: "xDAI",
+    decimals: 18,
+  }
 }
 
 export const CHAINS = [
